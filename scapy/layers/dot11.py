@@ -116,6 +116,29 @@ class _RadiotapReversePadField(ReversePadField):
             self._align = struct.calcsize(self._fld.fmt)
 
 
+class _RadiotapExtFieldList(FieldListField):
+    def __init__(self, name, default):
+        field = FlagsField("ext", None, -32, [
+            'b0',  'b1',  'b2',  'b3',  'b4',  'b5',  'b6',  'b7',
+            'b8',  'b9',  'b10', 'b11', 'b12', 'b13', 'b14', 'b15',
+            'b16', 'b17', 'b18', 'b19', 'b20', 'b21', 'b22', 'b23',
+            'b24', 'b25', 'b26', 'b27', 'b28', 'b29', 'b30', 'Ext',
+        ])
+        super(_RadiotapExtFieldList, self).__init__(name, default, field)
+
+    def getfield(self, pkt, s):
+        rtn = []
+        while s:
+            s, flags = self.field.getfield(pkt, s)
+            rtn.append(flags)
+
+            # Keep processing until we hit a present word without an Ext bit
+            if not flags.Ext:
+                break
+
+        return s, rtn
+
+
 class _dbmField(ByteField):
     def i2m(self, pkt, x):
         return super(ByteField, self).i2m(pkt, x + 256)
@@ -145,6 +168,7 @@ class RadioTap(Packet):
                                                      'RXFlags', 'b16', 'b17', 'b18', 'ChannelPlus', 'MCS', 'A_MPDU',  # noqa: E501
                                                      'VHT', 'timestamp', 'b24', 'b25', 'b26', 'b27', 'b28', 'b29',  # noqa: E501
                                                      'RadiotapNS', 'VendorNS', 'Ext']),  # noqa: E501
+                   ConditionalField(_RadiotapExtFieldList("ext_present", None), lambda pkt: pkt.present and pkt.present.Ext),  # noqa: E501
                    ConditionalField(_RadiotapReversePadField(BitField("mac_timestamp", 0, -64)), lambda pkt: pkt.present and pkt.present.TSFT),  # noqa: E501
                    ConditionalField(
                        _RadiotapReversePadField(
